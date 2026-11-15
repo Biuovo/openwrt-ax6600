@@ -1,4 +1,18 @@
-# 🚀 OpenWrt AX6600 / IPQ60xx Router Firmware (Cloud Build + PPE Acceleration)
+# 太乙 ER1（RE-CS-07）PPE / Flowtable + Honk 云编译
+
+此 fork 已改为太乙 ER1 纯有线机型，`QCA-ALL` 只构建 ER1 的 PURE / PLUS 两版。保留原项目的 PPE、Linux Flowtable、SONiC FullCone 和版本插件组合，仅新增 daeuniverse 官方 Honk（含 LuCI / Doona）。PLUS 保留 Docker、OpenClash、PassWall2 等原有插件。
+
+- 设备：`jdcloud_re-cs-07`，1 个千兆 WAN + 3 个千兆 LAN，无 Wi-Fi / 雅典娜点阵屏。
+- 源码：`ones20250/immortalwrt_ipq` 的 `owrt` 分支，使用其现有 ER1 DSA/PPE 设备树。
+- Honk：官方 `daeuniverse/openwrt-packages`，核心 `daeuniverse/honk v0.1.0-beta.6`，内核启用 BTF。
+- 编译：Actions → **QCA-ALL**，`TEST=false`；仅校验配置可选 **WRT-TEST** → `CONFIG=IPQ60XX-ER1`、`TEST=true`。
+- 管理地址沿用原项目：`192.168.10.1`，新安装的管理员密码为空，请登录后设置。
+- 固件尚需云编译及 ER1 实机验证；PPE/Flowtable 运行状态应在刷机后检查。
+- 下方保留的是雅典娜上游说明，Wi-Fi、LED、2.5G 端口及其刷机附件不适用于 ER1。必须使用 ER1 对应的 U-Boot 和分区布局；保留内核 6 MiB 镜像定义，没有修改分区表。
+
+---
+
+# 上游雅典娜项目说明（参考）
 
 OpenWrt / AX6600 / IPQ6010 / JDCloud RE-CS-02 / PPE / Router Firmware / Cloud Build
 > 基于 OpenWrt / ImmortalWrt 的定制固件，适配 JDCloud RE-CS-02（京东云雅典娜 AX6600），全面迁移至 Linux 6.18 LTS 内核，集成 Qualcomm PPE 开源硬件加速、SONiC FullCone NAT1 与 GitHub Actions 极速云编译

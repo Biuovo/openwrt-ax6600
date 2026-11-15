@@ -294,9 +294,9 @@ echo "PASS: PURE profile target tree PPE driver with clock fix succeeded (exit c
 rm -rf "$TMP_DIR/target"
 
 # -----------------------------------------------------------------------------
-# 12. 校验 firewall4 与雅典娜目标设备架构断言逻辑
+# 12. 校验 firewall4 与ER1 目标设备架构断言逻辑
 # -----------------------------------------------------------------------------
-echo "--- Case: Verify firewall4 and Athena target device assertion extraction ---"
+echo "--- Case: Verify firewall4 and ER1 target device assertion extraction ---"
 FIREWALL_ASSERT_SNIPPET="$(awk '/# 4\. 检查 PPE 硬件流表/{flag=1; next} flag && /# 5\. PLUS/{flag=0} flag' "$WORKFLOW_FILE")"
 if [ -z "$FIREWALL_ASSERT_SNIPPET" ]; then
     echo "FAIL: Failed to extract firewall4 / target device assertion block from $WORKFLOW_FILE!" >&2
@@ -320,12 +320,16 @@ exit 0
 EOF
 chmod +x "$FW_TEST_SCRIPT"
 
-# 12a. 全量合法配置：PPE offload, luci-app-firewall, firewall4, jdcloud_re-cs-02 均在场
+# 12a. 全量合法配置：PPE offload, luci-app-firewall, firewall4, jdcloud_re-cs-07 均在场
 cat << 'EOF' > "$TMP_DIR/.config"
 CONFIG_PACKAGE_kmod-nft-offload=y
 CONFIG_PACKAGE_luci-app-firewall=y
 CONFIG_PACKAGE_firewall4=y
-CONFIG_TARGET_DEVICE_qualcommax_ipq60xx_DEVICE_jdcloud_re-cs-02=y
+CONFIG_TARGET_DEVICE_qualcommax_ipq60xx_DEVICE_jdcloud_re-cs-07=y
+CONFIG_PACKAGE_honk=y
+CONFIG_PACKAGE_luci-app-honk=y
+CONFIG_PACKAGE_vmlinux-btf-builtin=y
+CONFIG_KERNEL_DEBUG_INFO_BTF=y
 EOF
 set +e
 "$BASH_BIN" "$FW_TEST_SCRIPT" "$TMP_DIR/.config" > "$TMP_DIR/output.log" 2>&1
@@ -342,7 +346,7 @@ echo "PASS: Valid firewall4 and target device assertions passed."
 cat << 'EOF' > "$TMP_DIR/.config"
 CONFIG_PACKAGE_kmod-nft-offload=y
 CONFIG_PACKAGE_luci-app-firewall=y
-CONFIG_TARGET_DEVICE_qualcommax_ipq60xx_DEVICE_jdcloud_re-cs-02=y
+CONFIG_TARGET_DEVICE_qualcommax_ipq60xx_DEVICE_jdcloud_re-cs-07=y
 EOF
 set +e
 "$BASH_BIN" "$FW_TEST_SCRIPT" "$TMP_DIR/.config" > "$TMP_DIR/output.log" 2>&1
@@ -359,7 +363,7 @@ if ! grep -q "CONFIG_PACKAGE_firewall4 未入选" "$TMP_DIR/output.log"; then
 fi
 echo "PASS: Missing firewall4 assertion correctly triggered (exit code 1)."
 
-# 12c. 故障注入：缺少目标机型 CONFIG_TARGET_DEVICE_qualcommax_ipq60xx_DEVICE_jdcloud_re-cs-02=y 时必须被拦截阻断
+# 12c. 故障注入：缺少目标机型 CONFIG_TARGET_DEVICE_qualcommax_ipq60xx_DEVICE_jdcloud_re-cs-07=y 时必须被拦截阻断
 cat << 'EOF' > "$TMP_DIR/.config"
 CONFIG_PACKAGE_kmod-nft-offload=y
 CONFIG_PACKAGE_luci-app-firewall=y
@@ -374,7 +378,7 @@ if [ "$ACTUAL_EXIT" -ne 1 ]; then
     cat "$TMP_DIR/output.log" >&2
     exit 1
 fi
-if ! grep -q "CONFIG_TARGET_DEVICE_qualcommax_ipq60xx_DEVICE_jdcloud_re-cs-02 未入选" "$TMP_DIR/output.log"; then
+if ! grep -q "CONFIG_TARGET_DEVICE_qualcommax_ipq60xx_DEVICE_jdcloud_re-cs-07 未入选" "$TMP_DIR/output.log"; then
     echo "FAIL: Error message did not report missing target device: $(cat "$TMP_DIR/output.log")" >&2
     exit 1
 fi

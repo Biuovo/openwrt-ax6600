@@ -7,11 +7,11 @@ on:
   workflow_dispatch:
     inputs:
       CONFIG:
-        default: 'IPQ60XX-WIFI-YES'
+        default: 'IPQ60XX-ER1'
         required: true
         type: choice
         options:
-          - IPQ60XX-WIFI-YES
+          - IPQ60XX-ER1
       SOURCE:
         default: 'ones20250/immortalwrt_ipq'
         required: true
