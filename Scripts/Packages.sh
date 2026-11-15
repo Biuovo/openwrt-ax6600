@@ -61,7 +61,7 @@ UPDATE_PACKAGE() {
 #UPDATE_PACKAGE "homeproxy" "ones20250/homeproxy" "master"
 #UPDATE_PACKAGE "momo" "nikkinikki-org/OpenWrt-momo" "main"
 #UPDATE_PACKAGE "nikki" "nikkinikki-org/OpenWrt-nikki" "main"
-if [[ "${WRT_PROFILE^^}" == "PLUS" ]]; then
+{
 	# LuCI 入口随 "pkg" 通配一并提取，依赖包（xray、sing-box、geodata 等）
 	# 由 passwall_packages feed 提供，避免同名包双重定义。
 	UPDATE_PACKAGE "openclash" "vernesong/OpenClash" "master" "pkg"
@@ -71,7 +71,7 @@ if [[ "${WRT_PROFILE^^}" == "PLUS" ]]; then
 	# 分区扩容与网络唤醒：源码仅 PLUS 版拉取，PURE 纯净版不集成
 	UPDATE_PACKAGE "partexp" "sirpdboy/luci-app-partexp" "main"
 	UPDATE_PACKAGE "viking" "ones20250/packages" "main" "" "luci-app-timewol luci-app-wolplus luci-app-wolultra"
-fi
+}
 
 #UPDATE_PACKAGE "mosdns" "sbwml/luci-app-mosdns" "v5" "" "v2dat"
 

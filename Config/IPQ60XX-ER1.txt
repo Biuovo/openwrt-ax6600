@@ -1,4 +1,4 @@
-# JDCloud Taichi ER1 (RE-CS-07), wired IPQ6018; no Wi-Fi
+# JDCloud Taichi ER1 (RE-CS-07), IPQ6018, wired-only.
 CONFIG_TARGET_qualcommax=y
 CONFIG_TARGET_qualcommax_ipq60xx=y
 CONFIG_TARGET_MULTI_PROFILE=y
@@ -8,43 +8,26 @@ CONFIG_TARGET_DEVICE_qualcommax_ipq60xx_DEVICE_jdcloud_re-cs-07=y
 CONFIG_IPQ_MEM_PROFILE_1024=y
 CONFIG_USE_APK=y
 
-# Wired-only hardware: omit radios and NSS Wi-Fi package
+# Explicitly disable wireless packages, including target-default selections.
 CONFIG_PACKAGE_kmod-ath=n
 CONFIG_PACKAGE_kmod-ath11k=n
 CONFIG_PACKAGE_kmod-ath11k-ahb=n
 CONFIG_PACKAGE_kmod-ath11k-pci=n
 CONFIG_PACKAGE_ath11k-firmware-ipq6018=n
 CONFIG_PACKAGE_ath11k-firmware-ipq6018-ddwrt=n
+CONFIG_PACKAGE_ath11k-firmware-qcn9074=n
+CONFIG_PACKAGE_ath11k-firmware-qcn9074-ddwrt=n
+CONFIG_PACKAGE_kmod-nss-wifi-drv=n
 CONFIG_PACKAGE_wpad-openssl=n
 CONFIG_PACKAGE_hostapd-common=n
 CONFIG_PACKAGE_iw=n
 CONFIG_PACKAGE_iwinfo=n
 CONFIG_PACKAGE_wifi-scripts=n
 CONFIG_PACKAGE_wireless-regdb=n
-CONFIG_PACKAGE_kmod-nss-wifi-drv=n
-CONFIG_PACKAGE_kmod-mac80211=n
-CONFIG_PACKAGE_kmod-cfg80211=n
-CONFIG_PACKAGE_ath11k-firmware-qcn9074=n
-CONFIG_PACKAGE_ath11k-firmware-qcn9074-ddwrt=n
 CONFIG_PACKAGE_luci-app-wireless-regdb=n
 CONFIG_PACKAGE_luci-app-athena-led=n
 CONFIG_PACKAGE_luci-i18n-athena-led-zh-cn=n
-
-# Only add official daeuniverse Honk; retain the original PURE/PLUS packages.
-CONFIG_PACKAGE_honk=y
-CONFIG_PACKAGE_luci-app-honk=y
-CONFIG_PACKAGE_luci-lib-daeuniverse=y
-CONFIG_PACKAGE_luci-i18n-daeuniverse-zh-cn=y
-CONFIG_PACKAGE_vmlinux-btf-builtin=y
-CONFIG_PACKAGE_vmlinux-btf=n
-CONFIG_PACKAGE_dae=n
-CONFIG_PACKAGE_luci-app-dae=n
-CONFIG_PACKAGE_v2ray-geoip=y
-CONFIG_PACKAGE_v2ray-geosite=y
-CONFIG_KERNEL_DEBUG_INFO=y
-CONFIG_KERNEL_DEBUG_INFO_REDUCED=n
-CONFIG_KERNEL_DEBUG_INFO_BTF=y
-CONFIG_KERNEL_CGROUPS=y
-CONFIG_KERNEL_CGROUP_BPF=y
-CONFIG_KERNEL_BPF_EVENTS=y
-CONFIG_KERNEL_NET_NS=y
+# Explicitly override the IPQ60xx target's Wi-Fi defaults.
+CONFIG_PACKAGE_ath11k-firmware-ipq6018-ddwrt=n
+CONFIG_PACKAGE_kmod-nss-wifi-drv=n
+CONFIG_PACKAGE_wpad-openssl=n

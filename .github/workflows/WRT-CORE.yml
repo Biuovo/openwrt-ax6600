@@ -37,10 +37,6 @@ on:
       WRT_PACKAGE:
         required: false
         type: string
-      WRT_PROFILE:
-        required: false
-        type: string
-        default: PURE
       WRT_TEST:
         required: false
         type: string
@@ -62,8 +58,7 @@ env:
   WRT_BRANCH: ${{inputs.WRT_BRANCH}}
   WRT_SOURCE: ${{inputs.WRT_SOURCE}}
   WRT_PACKAGE: ${{inputs.WRT_PACKAGE}}
-  WRT_PROFILE: ${{inputs.WRT_PROFILE}}
-  WRT_PKG_INFO: 无（纯净版不集成外部插件）
+  WRT_PKG_INFO: 官方 Honk 源码与插件版本
   WRT_TEST: ${{inputs.WRT_TEST}}
 
 jobs:
@@ -103,22 +98,13 @@ jobs:
         run: |
           echo "WRT_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")" >> $GITHUB_ENV
           echo "WRT_MARK=${GITHUB_REPOSITORY%%/*}" >> $GITHUB_ENV
-          WRT_PROFILE_UPPER=$(echo "${WRT_PROFILE:-PURE}" | tr '[:lower:]' '[:upper:]')
-          case "$WRT_PROFILE_UPPER" in
-            PURE|PLUS) ;;
-            *) echo "Unsupported WRT_PROFILE: $WRT_PROFILE" >&2; exit 1 ;;
-          esac
-          echo "WRT_PROFILE=$WRT_PROFILE_UPPER" >> $GITHUB_ENV
-          if [[ "$WRT_PROFILE_UPPER" == "PLUS" ]]; then
-            echo "WRT_PROFILE_DESC=Plus 版，预装 OpenClash、PassWall2、Docker/Dockerman、AdGuard Home、DDNS、ttyd、UPnP 及分区扩容、网络唤醒等实用插件，刷完即用；启用 AdGuard Home 与代理插件前请先阅读 README 的「PLUS 版使用提示」" >> $GITHUB_ENV
-          else
-            echo "WRT_PROFILE_DESC=纯净版，轻量稳定，仅含基础网络与常用管理插件，扩展插件按需自行安装" >> $GITHUB_ENV
-          fi
+          WRT_FIRMWARE_NAME="ER1"
+          echo "WRT_FIRMWARE_NAME=$WRT_FIRMWARE_NAME" >> $GITHUB_ENV
+          echo "WRT_PROFILE_DESC=太乙 ER1 单一有线固件，沿用原插件组合，新增 daeuniverse 官方 Honk" >> $GITHUB_ENV
           WRT_INFO="${WRT_SOURCE%%/*}"
           echo "WRT_INFO=$WRT_INFO" >> $GITHUB_ENV
           echo "WRT_TARGET=$(grep -m 1 -oP '^CONFIG_TARGET_\K[\w]+(?=\=y)' ./Config/$WRT_CONFIG.txt)" >> $GITHUB_ENV
           echo "WRT_WIFI=wifi-no" >> $GITHUB_ENV
-          echo "WRT_EXTRA_CONFIG=$([[ -f ./Config/GENERAL_AX6600_${WRT_PROFILE_UPPER}.txt ]] && echo ./Config/GENERAL_AX6600_${WRT_PROFILE_UPPER}.txt || true)" >> $GITHUB_ENV
           echo "WRT_KVER=none" >> $GITHUB_ENV
           echo "WRT_LIST=none" >> $GITHUB_ENV
 
@@ -134,13 +120,10 @@ jobs:
             sed -i '/.cn\//d; /tencent/d; /aliyun/d' "$PROJECT_MIRRORS_FILE"
           fi
 
-          # Plus 版补充 PassWall 依赖包 feed（xray/sing-box 等）。
-          # LuCI 插件本体由 Packages.sh 克隆到 package/，这里不再加 LuCI feed，避免同名包双重定义。
-          if [[ "$WRT_PROFILE" == "PLUS" ]]; then
-            echo "src-git passwall_packages https://github.com/Openwrt-Passwall/openwrt-passwall-packages" >> feeds.conf.default
-          fi
+          echo "src-git passwall_packages https://github.com/Openwrt-Passwall/openwrt-passwall-packages" >> feeds.conf.default
 
       - name: Fix QCA8081 Port Clocks
+        if: env.WRT_CONFIG != 'IPQ60XX-ER1'
         run: |
           cd ./wrt/
           bash "$GITHUB_WORKSPACE/.github/scripts/prepare-qca8081-clock-fix.sh"
@@ -157,7 +140,7 @@ jobs:
           WRT_SUBTARGET=$(grep -m 1 -oP "^CONFIG_TARGET_${WRT_TARGET}_\K[\w]+(?=\=y)" "./Config/$WRT_CONFIG.txt")
           WRT_CACHE_SOURCE=${WRT_SOURCE//\//-}
           WRT_CACHE_BRANCH=${WRT_BRANCH//\//-}
-          # 保留目标硬件配置名($WRT_CONFIG)隔离；固件版本($WRT_PROFILE)不加入键，PURE/PLUS 共用工具链与 ccache 缓存
+          # Isolate toolchain and cache by source, kernel target and ER1 device config.
           WRT_CACHE_PREFIX="wrt-$WRT_CACHE_SOURCE-$WRT_CACHE_BRANCH-$WRT_TARGET-$WRT_SUBTARGET-$WRT_CONFIG"
           WRT_CACHE_KEY="$WRT_CACHE_PREFIX-$(git -C ./wrt rev-parse HEAD)"
           WRT_CACHE_STARTED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -176,7 +159,7 @@ jobs:
         if: env.WRT_TEST != 'true'
         uses: actions/cache/restore@v4
         with:
-          # 缓存内容（ccache/宿主工具/工具链）与 profile 无关，PURE 和 PLUS 共享同一份，避免缓存翻倍挤占配额
+          # Cache only the ER1 build toolchain and host artifacts.
           key: ${{env.WRT_CACHE_KEY}}
           # 迁移时仅回退到同一源码提交的旧键，避免旧前缀混用其他分支。
           restore-keys: |
@@ -220,9 +203,6 @@ jobs:
           : > "$GITHUB_WORKSPACE/package-versions.txt"
           bash "$GITHUB_WORKSPACE/Scripts/Prepare-ER1.sh"
           $GITHUB_WORKSPACE/Scripts/Packages.sh
-          if [[ "$WRT_PROFILE" == "PLUS" && -e ../feeds/passwall_packages/.git ]]; then
-            echo "passwall_packages(feed) Openwrt-Passwall/openwrt-passwall-packages main $(git -C ../feeds/passwall_packages rev-parse --short HEAD)" >> "$GITHUB_WORKSPACE/package-versions.txt"
-          fi
           if [ -s "$GITHUB_WORKSPACE/package-versions.txt" ]; then
             {
               echo 'WRT_PKG_INFO<<EOF'
@@ -243,7 +223,7 @@ jobs:
             cat $GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt >> .config
           else
             #cat $GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt $GITHUB_WORKSPACE/Config/GENERAL.txt >> .config
-            cat "$GITHUB_WORKSPACE/Config/GENERAL_AX6600.txt" ${WRT_EXTRA_CONFIG:+$GITHUB_WORKSPACE/${WRT_EXTRA_CONFIG#./}} "$GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt" > .config
+            cat "$GITHUB_WORKSPACE/Config/GENERAL_ER1.txt" "$GITHUB_WORKSPACE/Config/$WRT_CONFIG.txt" > .config
           fi
 
           $GITHUB_WORKSPACE/Scripts/Settings.sh
@@ -306,27 +286,12 @@ jobs:
             echo "::error::Honk requires built-in kernel BTF"; FAIL=1
           fi
 
-          # 5. PLUS 核心插件入选断言 (当 WRT_PROFILE 为 PLUS 时)
-          if [[ "${WRT_PROFILE_UPPER:-${WRT_PROFILE}}" == "PLUS" ]]; then
-            echo "--- 检查 PLUS 核心插件意图一致性 ---"
-            for PKG in luci-app-passwall2 luci-app-openclash luci-app-dockerman luci-app-adguardhome luci-app-wolultra; do
-              PKG_INTENT="CONFIG_PACKAGE_${PKG}=y"
-              if [[ -f .config.seed ]]; then
-                PKG_INTENT=$(grep -E "^(#\s*)?CONFIG_PACKAGE_${PKG}(=|[[:space:]])" .config.seed | tail -n 1 || true)
-              fi
-
-              if [[ "$PKG_INTENT" == "CONFIG_PACKAGE_${PKG}=y" ]]; then
-                if grep -q "^CONFIG_PACKAGE_${PKG}=y" .config; then
-                  echo "  [PASS] PLUS 核心插件 ${PKG}: 已声明启用并成功入选"
-                else
-                  echo "::error::断言失败: PLUS 核心插件 ${PKG} 未实际入选！"
-                  FAIL=1
-                fi
-              else
-                echo "  [SKIP] PLUS 核心插件 ${PKG}: 源配置未声明启用，跳过校验"
-              fi
-            done
-          fi
+          # Single image preserves the fork's full original PLUS package set.
+          for PKG in luci-app-passwall2 luci-app-openclash luci-app-dockerman luci-app-adguardhome luci-app-wolultra; do
+            if ! grep -q "^CONFIG_PACKAGE_${PKG}=y" .config; then
+              echo "::error::ER1 package missing: ${PKG}"; FAIL=1
+            fi
+          done
 
           # 6. Qualcomm PPE 时钟驱动补丁生效断言
           PPE_DRIVER="target/linux/qualcommax/files/drivers/net/ethernet/qualcomm/qca_ppe_main.c"
@@ -358,22 +323,15 @@ jobs:
           fi
           echo "=== .config 配置断言校验全部通过 ==="
 
-      - name: Prepare Rust Toolchain
-        if: env.WRT_TEST != 'true'
-        run: |
-          cd ./wrt/
-
-          $GITHUB_WORKSPACE/.github/scripts/prepare-rust.sh
-
       - name: Install Honk stable Rust
-        if: env.WRT_TEST != 'true'
+        if: env.WRT_CONFIG == 'IPQ60XX-ER1' && env.WRT_TEST != 'true'
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.99.1
           targets: aarch64-unknown-linux-musl
 
       - name: Install Honk eBPF tools
-        if: env.WRT_TEST != 'true'
+        if: env.WRT_CONFIG == 'IPQ60XX-ER1' && env.WRT_TEST != 'true'
         run: |
           set -euo pipefail
           rustup toolchain install nightly-2026-10-20 --profile minimal --component rust-src --component llvm-tools
@@ -386,6 +344,12 @@ jobs:
           echo "$cargo_home/bin" >> "$GITHUB_PATH"
           echo 'CARGO_BUILD_JOBS=2' >> "$GITHUB_ENV"
           "$cargo_home/bin/bpf-linker" --version
+
+      - name: Prepare Rust Toolchain
+        if: env.WRT_TEST != 'true'
+        run: |
+          cd ./wrt/
+          bash "$GITHUB_WORKSPACE/.github/scripts/prepare-rust.sh"
 
       - name: Download Packages
         if: env.WRT_TEST != 'true'
@@ -416,7 +380,7 @@ jobs:
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: build-reports-${{env.WRT_CONFIG}}-${{env.WRT_PROFILE}}-${{env.WRT_INFO}}-${{github.run_attempt}}
+          name: build-reports-er1-${{env.WRT_INFO}}-${{github.run_attempt}}
           path: ./build-reports/
           retention-days: 7
 
@@ -446,9 +410,9 @@ jobs:
         run: |
           cd ./wrt/ && mkdir -p ./upload/
 
-          cp -f ./.config ./upload/Config-"$WRT_CONFIG"-"$WRT_PROFILE"-"$WRT_INFO"-"$WRT_BRANCH"-"$WRT_DATE".txt
+          cp -f ./.config ./upload/Config-ER1-"$WRT_INFO"-"$WRT_BRANCH"-"$WRT_DATE".txt
           if [ -s "$GITHUB_WORKSPACE/package-versions.txt" ]; then
-            cp -f "$GITHUB_WORKSPACE/package-versions.txt" ./upload/Packages-"$WRT_CONFIG"-"$WRT_PROFILE"-"$WRT_INFO"-"$WRT_BRANCH"-"$WRT_DATE".txt
+            cp -f "$GITHUB_WORKSPACE/package-versions.txt" ./upload/Packages-ER1-"$WRT_INFO"-"$WRT_BRANCH"-"$WRT_DATE".txt
           fi
 
           if [[ $WRT_TEST != 'true' ]]; then
@@ -462,7 +426,7 @@ jobs:
               NAME=$(basename $FILE | cut -d '.' -f 1 | grep -io "\($WRT_TARGET\).*")
               # 去掉恒定的平台前缀（qualcommax-），保留 ipq60xx 及设备型号
               NAME=${NAME#*-}
-              NEW_FILE="$WRT_INFO"-"$WRT_BRANCH"-"${WRT_PROFILE,,}"-"$NAME"-"$WRT_DATE"."$EXT"
+              NEW_FILE="$WRT_INFO"-"$WRT_BRANCH"-er1-"$NAME"-"$WRT_DATE"."$EXT"
               mv -f $FILE ./upload/$NEW_FILE
             done
 
@@ -482,7 +446,7 @@ jobs:
             echo "- Source: \`$WRT_SOURCE\`"
             echo "- Branch: \`$WRT_BRANCH\`"
             echo "- Config: \`$WRT_CONFIG\`"
-            echo "- Profile: \`$WRT_PROFILE\`"
+            echo "- Firmware: ER1 single image"
             echo "- Target: \`$WRT_TARGET\`"
             echo "- Firmware mode: \`$WRT_WIFI\`"
             echo "- Build time: \`$WRT_DATE\`"
@@ -492,7 +456,7 @@ jobs:
       - name: Release Firmware
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.WRT_CONFIG }}-${{ env.WRT_PROFILE }}-${{ env.WRT_INFO }}-${{ env.WRT_BRANCH }}-${{ env.WRT_DATE }}
+          tag_name: er1-${{ env.WRT_INFO }}-${{ env.WRT_BRANCH }}-${{ env.WRT_DATE }}
           files: ./wrt/upload/*.*
           body: |
             📦 OpenWrt 太乙 ER1（JDCloud RE-CS-07）
@@ -501,8 +465,8 @@ jobs:
             📌 基本信息
             <!-- 源码仓库：${{ env.WRT_REPO }} -->
             <!-- 编译分支：${{ env.WRT_BRANCH }} -->
-            固件版本：${{ env.WRT_PROFILE }}
-            版本说明：${{ env.WRT_PROFILE_DESC }}
+            固件型号：太乙 ER1（RE-CS-07）
+            固件版本：ER1 单一固件（原 PLUS 插件组合 + 官方 Honk）
             提交版本：${{ env.WRT_HASH }}
             编译时间：${{ env.WRT_DATE }}
             ━━━━━━━━━━━━━━━━━━━━━━━
@@ -534,7 +498,7 @@ jobs:
             Honk：daeuniverse 官方核心与 LuCI，内置 Doona 面板
             ━━━━━━━━━━━━━━━━━━━━━━━
             📥 下载与刷机说明
-            - 本 Release 为 ${{ env.WRT_PROFILE }} 版固件；两个版本分开发布，请从 README 下载入口按需选择
+            - 本 Release 是唯一 ER1 固件，包含原 PLUS 插件组合。
             - 首次从原厂固件刷入：选文件名带 factory 的文件
             - 已是 OpenWrt/ImmortalWrt 升级：选文件名带 sysupgrade 的文件
             - 请使用 ER1 对应的 U-Boot、分区表和升级方式；勿使用雅典娜设备的刷机附件。
