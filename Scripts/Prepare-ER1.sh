@@ -10,6 +10,37 @@ git clone --depth=1 --branch v0.1.0-beta.6 \
   https://github.com/daeuniverse/honk.git "$honk/src"
 test "$(git -C "$honk/src" rev-parse HEAD)" = 64848881b7304e250e7a25422f4f1d86a5975eca
 
+# The IPQ60xx target adds radio packages as DEFAULT_PACKAGES after Kconfig
+# merging. ER1 is wired-only, so remove those target defaults before defconfig.
+python3 - <<'PY'
+from pathlib import Path
+import re
+rules = {
+    Path('../target/linux/qualcommax/Makefile'): [
+        'wpad-openssl', 'kmod-ath11k', 'kmod-ath11k-ahb', 'kmod-ath11k-pci',
+    ],
+    Path('../target/linux/qualcommax/ipq60xx/target.mk'): [
+        'ath11k-firmware-ipq6018-ddwrt', 'kmod-nss-wifi-drv',
+    ],
+}
+for path, names in rules.items():
+    text = path.read_text()
+    for name in names:
+        text = re.sub(r'(?<![A-Za-z0-9_-])' + re.escape(name) + r'(?![A-Za-z0-9_-])', '', text)
+    path.write_text(text)
+PY
+
+# The IPQ60xx target adds Wi-Fi packages globally. Remove those defaults before
+# defconfig; the RE-CS-07 device itself is wired-only.
+TARGET_MK=../target/linux/qualcommax/ipq60xx/target.mk
+QCOM_MK=../target/linux/qualcommax/Makefile
+if [ -f "$TARGET_MK" ]; then
+  sed -i -E 's/(^|[[:space:]])(ath11k-firmware-ipq6018-ddwrt|kmod-nss-wifi-drv)([[:space:]]|$)/ /g' "$TARGET_MK"
+fi
+if [ -f "$QCOM_MK" ]; then
+  sed -i -E 's/(^|[[:space:]])(wpad-openssl|kmod-ath11k|kmod-ath11k-ahb|kmod-ath11k-pci)([[:space:]]|$)/ /g' "$QCOM_MK"
+fi
+
 # Honk's nested `cargo +nightly` must use rustup's proxy, not OpenWrt's
 # staged standalone cargo (other Rust packages keep the original host setup).
 python3 - "$honk/Makefile" <<'PY'

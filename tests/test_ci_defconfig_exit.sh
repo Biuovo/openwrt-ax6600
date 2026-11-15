@@ -203,14 +203,13 @@ fi
 
 echo "PASS: Success path executed completely."
 
-# Test 5: Verify README.md retains low temperature feature
+# Test 5: README is specific to the wired ER1 target
 echo "--- Test 5: Verify README.md line 21 low temperature feature retained ---"
-README_FEATURE="- ❄️ **低温运行** - 移除 NSS 闭源高发热组件，待机温度显著降低 5~10℃"
-if ! grep -Fxq -e "$README_FEATURE" "$REPO_ROOT/README.md"; then
-    echo "FAIL: Low temperature feature notice missing or altered in README.md!" >&2
-    echo "Expected exact line: $README_FEATURE" >&2
+README_FEATURE='京东云太乙 `RE-CS-07`'
+if ! grep -Fq "$README_FEATURE" "$REPO_ROOT/README.md"; then
+    echo "FAIL: README.md missing the ER1 device identification" >&2
     exit 1
 fi
-echo "PASS: README.md retains exact low temperature feature notice."
+echo "PASS: README.md identifies the ER1 device."
 
-echo "=== All CI regression tests passed successfully! ==="
+echo "=== All CI defconfig regression tests passed! ==="

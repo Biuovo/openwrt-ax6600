@@ -100,7 +100,7 @@ jobs:
           echo "WRT_MARK=${GITHUB_REPOSITORY%%/*}" >> $GITHUB_ENV
           WRT_FIRMWARE_NAME="ER1"
           echo "WRT_FIRMWARE_NAME=$WRT_FIRMWARE_NAME" >> $GITHUB_ENV
-          echo "WRT_PROFILE_DESC=太乙 ER1 单一有线固件，沿用原插件组合，新增 daeuniverse 官方 Honk" >> $GITHUB_ENV
+          echo "WRT_PROFILE_DESC=ER1 single firmware: retained packages plus official Honk" >> $GITHUB_ENV
           WRT_INFO="${WRT_SOURCE%%/*}"
           echo "WRT_INFO=$WRT_INFO" >> $GITHUB_ENV
           echo "WRT_TARGET=$(grep -m 1 -oP '^CONFIG_TARGET_\K[\w]+(?=\=y)' ./Config/$WRT_CONFIG.txt)" >> $GITHUB_ENV
@@ -121,12 +121,6 @@ jobs:
           fi
 
           echo "src-git passwall_packages https://github.com/Openwrt-Passwall/openwrt-passwall-packages" >> feeds.conf.default
-
-      - name: Fix QCA8081 Port Clocks
-        if: env.WRT_CONFIG != 'IPQ60XX-ER1'
-        run: |
-          cd ./wrt/
-          bash "$GITHUB_WORKSPACE/.github/scripts/prepare-qca8081-clock-fix.sh"
 
       - name: Check Scripts
         run: |
@@ -232,6 +226,17 @@ jobs:
           cp .config .config.seed
 
           make defconfig -j$(nproc)
+          if [[ "$WRT_CONFIG" == "IPQ60XX-ER1" ]]; then
+            for pkg in kmod-ath kmod-ath11k kmod-ath11k-ahb kmod-ath11k-pci \
+              ath11k-firmware-ipq6018 ath11k-firmware-ipq6018-ddwrt \
+              ath11k-firmware-qcn9074 ath11k-firmware-qcn9074-ddwrt \
+              kmod-nss-wifi-drv wpad-openssl wpad-basic-mbedtls wpad-mbedtls \
+              hostapd-common iw iwinfo wifi-scripts wireless-regdb \
+              luci-app-wireless-regdb luci-app-athena-led luci-i18n-athena-led-zh-cn; do
+              sed -i "/^CONFIG_PACKAGE_${pkg}=/d" .config
+              printf 'CONFIG_PACKAGE_%s=n\\n' "$pkg" >> .config
+            done
+          fi
           make clean -j$(nproc)
 
           echo "=== 正在执行 .config 配置断言校验 ==="
@@ -279,42 +284,21 @@ jobs:
               echo "::error::Required Honk package missing: $PKG"; FAIL=1
             fi
           done
-          if grep -Eq '^CONFIG_PACKAGE_(kmod-ath11k[^=]*|kmod-nss-wifi-drv|wpad[^=]*|luci-app-athena-led)=[ym]$' .config; then
+          if grep -Eq '^CONFIG_PACKAGE_(ath11k[^=]*|kmod-nss-wifi-drv|wpad[^=]*|luci-app-athena-led|luci-i18n-athena-led-zh-cn)=[ym]$' .config; then
             echo "::error::ER1 must not include Wi-Fi or Athena LED packages"; FAIL=1
           fi
           if ! grep -Fqx 'CONFIG_KERNEL_DEBUG_INFO_BTF=y' .config; then
             echo "::error::Honk requires built-in kernel BTF"; FAIL=1
           fi
 
-          # Single image preserves the fork's full original PLUS package set.
+          # Required ER1 addons are present in GENERAL_ER1.txt.
           for PKG in luci-app-passwall2 luci-app-openclash luci-app-dockerman luci-app-adguardhome luci-app-wolultra; do
             if ! grep -q "^CONFIG_PACKAGE_${PKG}=y" .config; then
               echo "::error::ER1 package missing: ${PKG}"; FAIL=1
             fi
           done
 
-          # 6. Qualcomm PPE 时钟驱动补丁生效断言
-          PPE_DRIVER="target/linux/qualcommax/files/drivers/net/ethernet/qualcomm/qca_ppe_main.c"
-          IPQ6018_PATCH="target/linux/qualcommax/patches-6.18/0918-clk-qcom-gcc-ipq6018-keep-port-5-on-uniphy1-at-SGMII-rates.patch"
-          IPQ8074_CONFLICT="target/linux/qualcommax/patches-6.18/0919-clk-qcom-gcc-ipq8074-keep-port-5-on-uniphy1-at-SGMII-rates.patch"
-          if [ -d "target" ]; then
-            if [ ! -f "$PPE_DRIVER" ]; then
-              echo "::error::断言失败: Qualcomm PPE 驱动文件缺失 ($PPE_DRIVER)！"
-              FAIL=1
-            elif ! grep -q "ppe_port_clk_parents" "$PPE_DRIVER"; then
-              echo "::error::断言失败: Qualcomm PPE 驱动未成功植入 QCA8081 时钟修复逻辑！"
-              FAIL=1
-            elif [ ! -s "$IPQ6018_PATCH" ]; then
-              echo "::error::断言失败: IPQ6018 GCC 时钟补丁缺失或为空 ($IPQ6018_PATCH)！"
-              FAIL=1
-            elif [ -e "$IPQ8074_CONFLICT" ]; then
-              echo "::error::断言失败: 检测到已废弃的 IPQ8074 冲突补丁残留 ($IPQ8074_CONFLICT)！"
-              FAIL=1
-            else
-              echo "  [PASS] Qualcomm PPE QCA8081 时钟修复逻辑与分频补丁校验通过。"
-            fi
-          fi
-
+          # ER1 has four QCA8075 ports and no QCA8081; no Athena clock patch applies.
           rm -f .config.seed
 
           if [[ $FAIL -ne 0 ]]; then
@@ -344,11 +328,10 @@ jobs:
           echo "$cargo_home/bin" >> "$GITHUB_PATH"
           echo 'CARGO_BUILD_JOBS=2' >> "$GITHUB_ENV"
           "$cargo_home/bin/bpf-linker" --version
-
-      - name: Prepare Rust Toolchain
-        if: env.WRT_TEST != 'true'
-        run: |
+          rustup default 1.99.1
           cd ./wrt/
+          export RUSTUP_TOOLCHAIN=1.99.1 RUSTUP_HOME="$HOME/.rustup" CARGO_HOME="$HOME/.cargo"
+          export PATH="$CARGO_HOME/bin:$PATH"
           bash "$GITHUB_WORKSPACE/.github/scripts/prepare-rust.sh"
 
       - name: Download Packages
