@@ -3,6 +3,23 @@ set -euo pipefail
 [[ "${WRT_CONFIG:-}" == "IPQ60XX-ER1" ]] || exit 0
 
 # Invoked from wrt/package, after the normal feed installation.
+# This build targets the user's existing 12 MiB ER1 kernel partition.
+python3 - ../target/linux/qualcommax/image/ipq60xx.mk <<'PY_ER1_IMAGE'
+from pathlib import Path
+import re, sys
+p = Path(sys.argv[1])
+s = p.read_text()
+pattern = r'(?ms)^define Device/jdcloud_re-cs-07\n.*?^endef$'
+blocks = list(re.finditer(pattern, s))
+assert len(blocks) == 1, 'ER1 device definition missing or ambiguous'
+m = blocks[0]
+block, count = re.subn(r'(?m)^(\s*KERNEL_SIZE\s*:=\s*)(?:6144|12288)k\s*$',
+                       r'\g<1>12288k', m.group())
+assert count == 1, 'Unexpected ER1 kernel size; review image layout'
+p.write_text(s[:m.start()] + block + s[m.end():])
+print('ER1 kernel partition: 12288 KiB (12 MiB), gzip FIT retained')
+PY_ER1_IMAGE
+
 feed=../feeds/daeuniverse
 honk="$feed/honk"
 test -f "$honk/Makefile"
